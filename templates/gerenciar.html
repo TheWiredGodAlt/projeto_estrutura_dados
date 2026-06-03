@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Usuários - Estruturas de Dados</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo-area">
+                <h2>⚡ DataStruct</h2>
+                <p>Análise de Performance</p>
+            </div>
+            <nav class="nav-menu">
+                <a href="/" class="nav-item">📊 Dashboard</a>
+                <a href="/cadastro" class="nav-item">➕ Cadastrar</a>
+                <a href="/gerenciar" class="nav-item active">📋 Gerenciar</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="main-header">
+                <h1>Gerenciar Usuários</h1>
+                <div class="header-stats">
+                    <div class="stat-badge">Total de usuários cadastrados: <span id="total-count">0</span></div>
+                </div>
+            </header>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Lista de Usuários</h3>
+                    <button id="refresh-btn" class="btn-secondary">🔄 Atualizar</button>
+                </div>
+                <table id="users-table">
+                    <thead>
+                        <tr><th>ID</th><th>Nome</th><th>E-mail</th><th>CPF</th><th>Data Cadastro</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="users-body">
+                        <tr><td colspan="6">Carregando usuários...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function loadUsers() {
+            fetch('/api/usuarios')
+                .then(response => response.json())
+                .then(users => {
+                    const tbody = document.getElementById('users-body');
+                    tbody.innerHTML = '';
+                    document.getElementById('total-count').textContent = users.length;
+                    if (users.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6">Nenhum usuário cadastrado. Clique em "Cadastrar" no menu lateral.</td></tr>';
+                        return;
+                    }
+                    users.forEach(user => {
+                        const row = tbody.insertRow();
+                        row.insertCell(0).textContent = user.id;
+                        row.insertCell(1).textContent = user.nome;
+                        row.insertCell(2).textContent = user.email;
+                        row.insertCell(3).textContent = user.cpf;
+                        row.insertCell(4).textContent = new Date(user.data_criacao).toLocaleString();
+                        const actionsCell = row.insertCell(5);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = '🗑️ Deletar';
+                        deleteBtn.className = 'delete-btn';
+                        deleteBtn.onclick = () => deleteUser(user.id);
+                        actionsCell.appendChild(deleteBtn);
+                    });
+                })
+                .catch(error => console.error('Erro ao carregar usuários:', error));
+        }
+
+        function deleteUser(id) {
+            if (confirm('Tem certeza que deseja deletar este usuário?')) {
+                fetch(`/api/deletar/${id}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            loadUsers();
+                            alert('Usuário deletado com sucesso!');
+                        } else {
+                            alert('Erro ao deletar usuário.');
+                        }
+                    })
+                    .catch(error => console.error('Erro na deleção:', error));
+            }
+        }
+
+        document.getElementById('refresh-btn').addEventListener('click', loadUsers);
+        loadUsers();
+    </script>
+</body>
+</html>

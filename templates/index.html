@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Estruturas de Dados</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo-area">
+                <h2>⚡ DataStruct</h2>
+                <p>Análise de Performance</p>
+            </div>
+            <nav class="nav-menu">
+                <a href="/" class="nav-item active">📊 Dashboard</a>
+                <a href="/cadastro" class="nav-item">➕ Cadastrar</a>
+                <a href="/gerenciar" class="nav-item">📋 Gerenciar</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="main-header">
+                <h1>Dashboard Comparativo</h1>
+                <div class="header-stats">
+                    <div class="stat-badge">Tabela Hash vs B-Tree (MySQL)</div>
+                </div>
+            </header>
+
+            <div class="search-section">
+                <h2>🔍 Busca em Tempo Real</h2>
+                <p>Compare a velocidade e uso de memória entre Tabela Hash e B-Tree do MySQL</p>
+                <div class="search-container">
+                    <input type="text" id="cpf-busca" placeholder="Digite o CPF (apenas números)" maxlength="11">
+                    <button id="btn-buscar">Comparar</button>
+                </div>
+                <div id="resultado-busca"></div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-card">
+                    <h3>Tempo de Resposta (milissegundos)</h3>
+                    <canvas id="timeChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Consumo de Memória (MB)</h3>
+                    <canvas id="memoryChart"></canvas>
+                </div>
+            </div>
+
+            <div class="logs-section">
+                <h3>📊 Histórico de Testes</h3>
+                <div class="table-container">
+                    <table id="logs-table">
+                        <thead>
+                            <tr><th>CPF</th><th>Estrutura</th><th>Tempo (s)</th><th>Memória (MB)</th><th>Data</th></tr>
+                        </thead>
+                        <tbody id="logs-body">
+                            <tr><td colspan="5">Carregando logs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let timeChart, memoryChart;
+
+        // Função para atualizar os gráficos
+        function updateCharts(labels, times, memories) {
+            if (timeChart) timeChart.destroy();
+            if (memoryChart) memoryChart.destroy();
+
+            const timeCtx = document.getElementById('timeChart').getContext('2d');
+            timeChart = new Chart(timeCtx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: 'Tempo (ms)', data: times, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Milissegundos' } } } }
+            });
+
+            const memCtx = document.getElementById('memoryChart').getContext('2d');
+            memoryChart = new Chart(memCtx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: 'Memória (MB)', data: memories, backgroundColor: 'rgba(255, 99, 132, 0.6)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Megabytes (MB)' } } } }
+            });
+        }
+
+        // Função para carregar os logs e atualizar os gráficos
+        function loadLogs() {
+            fetch('/api/logs')
+                .then(response => response.json())
+                .then(logs => {
+                    const tbody = document.getElementById('logs-body');
+                    tbody.innerHTML = '';
+                    const hashLogs = logs.filter(log => log.estrutura_usada === 'hash_table');
+                    const mysqlLogs = logs.filter(log => log.estrutura_usada === 'mysql_btree');
+                    
+                    if (hashLogs.length === 0 && mysqlLogs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5">Nenhum log encontrado. Realize algumas buscas!</td></tr>';
+                        updateCharts(['Hash Table', 'MySQL'], [0, 0], [0, 0]);
+                        return;
+                    }
+                    
+                    const lastHash = hashLogs[0];
+                    const lastMysql = mysqlLogs[0];
+                    
+                    logs.forEach(log => {
+                        const row = tbody.insertRow();
+                        row.insertCell(0).textContent = log.cpf_buscado;
+                        row.insertCell(1).textContent = log.estrutura_usada === 'hash_table' ? 'Tabela Hash' : 'MySQL (B-Tree)';
+                        row.insertCell(2).textContent = (log.tempo_segundos * 1000).toFixed(3);
+                        row.insertCell(3).textContent = log.memoria_mb.toFixed(2);
+                        row.insertCell(4).textContent = new Date(log.data_busca).toLocaleString();
+                    });
+                    
+                    if (lastHash && lastMysql) {
+                        updateCharts(['Hash Table', 'MySQL'], 
+                            [lastHash.tempo_segundos * 1000, lastMysql.tempo_segundos * 1000],
+                            [lastHash.memoria_mb, lastMysql.memoria_mb]);
+                    } else if (lastHash) {
+                        updateCharts(['Hash Table', 'MySQL'], [lastHash.tempo_segundos * 1000, 0], [lastHash.memoria_mb, 0]);
+                    } else if (lastMysql) {
+                        updateCharts(['Hash Table', 'MySQL'], [0, lastMysql.tempo_segundos * 1000], [0, lastMysql.memoria_mb]);
+                    }
+                })
+                .catch(error => console.error('Erro ao carregar logs:', error));
+        }
+
+        // Função para realizar a busca comparativa
+        function searchUser() {
+            const cpf = document.getElementById('cpf-busca').value.trim();
+            if (!cpf || cpf.length !== 11) {
+                alert('Por favor, digite um CPF válido com 11 dígitos.');
+                return;
+            }
+            const btn = document.getElementById('btn-buscar');
+            const originalText = btn.textContent;
+            btn.textContent = 'Buscando...';
+            btn.disabled = true;
+            document.getElementById('resultado-busca').innerHTML = '<div class="loading">Realizando teste comparativo...</div>';
+
+            fetch(`/api/buscar?cpf=${cpf}`)
+                .then(response => response.json())
+                .then(data => {
+                    let html = '<div class="comparison-results"><h4>Resultado da Comparação:</h4><div class="comparison-cards">';
+                    html += `<div class="hash-card"><strong>⚡ Tabela Hash</strong><br>👤 Usuário: ${data.hash_result ? data.hash_result.nome : 'Não encontrado'}<br>⏱️ Tempo: ${data.hash_time === -1 ? 'N/A' : (data.hash_time * 1000).toFixed(4) + ' ms'}<br>💾 Memória: ${data.hash_memory === -1 ? 'N/A' : data.hash_memory.toFixed(4) + ' MB'}</div>`;
+                    html += `<div class="mysql-card"><strong>🌲 MySQL (B-Tree)</strong><br>👤 Usuário: ${data.mysql_result ? data.mysql_result.nome : 'Não encontrado'}<br>⏱️ Tempo: ${(data.mysql_time * 1000).toFixed(4)} ms<br>💾 Memória: ${data.mysql_memory.toFixed(4)} MB</div></div>`;
+                    
+                    if (data.hash_time !== -1 && data.mysql_time !== -1) {
+                        const speedup = data.mysql_time / data.hash_time;
+                        html += `<div class="conclusion"><strong>🎯 Conclusão:</strong> A Tabela Hash foi ${speedup.toFixed(2)}x mais rápida que o MySQL para esta busca.</div>`;
+                    }
+                    html += '</div>';
+                    document.getElementById('resultado-busca').innerHTML = html;
+                    loadLogs();
+                })
+                .catch(error => {
+                    console.error('Erro na busca:', error);
+                    document.getElementById('resultado-busca').innerHTML = '<div class="error">Erro ao realizar a busca. Tente novamente.</div>';
+                })
+                .finally(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                });
+        }
+
+        document.getElementById('btn-buscar').addEventListener('click', searchUser);
+        document.getElementById('cpf-busca').addEventListener('keypress', function(e) { if (e.key === 'Enter') searchUser(); });
+        
+        loadLogs();
+        setInterval(loadLogs, 5000);
+    </script>
+</body>
+</html>
